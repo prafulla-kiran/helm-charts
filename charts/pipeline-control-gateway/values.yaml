@@ -13,52 +13,160 @@ ports:
   otlpHttp: 4318
   otlpGrpc: 4317
   healthHttp: 13133
-  prometheus: 8888
 
-prometheus:
-  ip: 0.0.0.0
-  scrape_interval: 15s
-  usage:
-    scrape_interval: 60s
+generated: | # yaml-language-server: disable
+  extensions:
+    zpages:
+    healthcheckv2:
+      use_v2: true
+      component_health:
+        include_permanent_errors: false
+        include_recoverable_errors: true
+        recovery_duration: 5m
+      http:
+        endpoint: ${env:MY_POD_IP}:{{ .Values.ports.healthHttp }}
+        status:
+          enabled: true
+          path: "/health/status"
+        config:
+          enabled: true
+          path: "/health/config"
 
-receivers:
-  nrproprietaryreceiver:
-    logging:
-      enable: false
-    logfilter:
-      enabled: false
-      flush_interval: 5s
-      pattern: ".*"
-      buffer_size: 262144
-    enableDefaultHost: false
-    enableRuntimeMetrics: true
-    proxy: false
+  receivers:
+    nrproprietaryreceiver:
+      nr_host: {{ .Values.endpoints.nrHost }}
+      logging:
+        enable:  false
+      logfilter:
+        enabled:  false
+        flush_interval:  5s
+        pattern: .*
+        buffer_size:  262144
+      enable_default_host:  false
+      enable_runtime_metrics:  true
+      proxy:  false
+      endpoints:
+        event_api_endpoint: {{ .Values.endpoints.eventApi }}
+        infra_event_api_endpoint: {{ .Values.endpoints.infraEventApi }}
+        log_api_endpoint: {{ .Values.endpoints.logApi }}
+        metrics_endpoint: {{ .Values.endpoints.metrics }}
+        traces_endpoint: {{ .Values.endpoints.traces }}
+      server:
+        endpoint: ${env:MY_POD_IP}:80
+      client:
+        compression: gzip
+        timeout: 10s
+    otlp:
+      protocols:
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+    prometheus/usage:
+      config:
+        scrape_configs:
+          - job_name: 'pipeline-gateway-usage'
+            static_configs:
+                labels:
+                  version: {{ .Chart.Version }}
+                  clusterName: {{ .Values.global.cluster }}
+                  serviceName: '{{ include "nrKubernetesOtel.service.fullname" .}}'
+    prometheus/monitoring:
+      config:
+        scrape_configs:
+          - job_name: 'pipeline-gateway-monitoring'
+            scrape_interval:  15s
+            static_configs:
+              - targets: [ '0.0.0.0:8888' ]
+                labels:
+                  version: {{ .Chart.Version }}
+                  podName: '${env:MY_POD_NAME}'
+                  clusterName: {{ .Values.global.cluster }}
+                  serviceName: '{{ include "nrKubernetesOtel.deployment.fullname" .}}'
+            metric_relabel_configs:
+              - action: labeldrop
+                regex: 'service_version|service_name|service_instance_id'
+              - source_labels: [ __name__ ]
+                regex: 'godebug_.*'
+                action: drop
 
-processors:
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: 100
-  nrprocessor:
-    queries:
-      - query:
-          name: foobar
-          value: "DELETE FROM Log WHERE pod_name = 'foo'"
-          category: DROP_DATA
-    queue:
-      enabled: true
-      queue_size: 100
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_mib:  100
+    nrprocessor:
+      queue:
+        enabled: true
+        queue_size: 100
+      queries:
+        - query:
+            name: "foobar"
+            value: "DELETE FROM Log WHERE pod_name = 'foo'"
+            category: "DROP_DATA"
 
-nrcollectorexporter:
-  retry_on_failure:
-    enabled: true
-    initial_interval: 100ms
-    max_interval: 500ms
-    max_elapsed_time: 5s
-  timeout: 10s
-  sending_queue:
-    enabled: false
-  compression: gzip
-  encoding: json
+  exporters:
+    otlp:
+      endpoint: {{ .Values.endpoints.grpc }}
+      headers:
+        api-key: ${env:NEW_RELIC_LICENSE_KEY}
+    otlphttp:
+      endpoint: {{ .Values.endpoints.otel }}
+      headers:
+        api-key: ${env:NEW_RELIC_LICENSE_KEY}
+    nrcollectorexporter:
+      endpoint: {{ .Values.endpoints.logApi }}
+      retry_on_failure:
+        enabled: true
+        initial_interval: 100ms
+        max_interval: 500ms
+        max_elapsed_time: 5s
+      timeout: 10s
+      sending_queue:
+        enabled: false
+      compression: gzip
+      encoding: json
+      nr_license_key: ${env:NEW_RELIC_LICENSE_KEY}
+
+  service:
+    extensions: [ healthcheckv2 ]
+
+    pipelines:
+      logs/nr:
+        receivers: [nrproprietaryreceiver]
+        processors: [nrprocessor]
+        exporters: [nrcollectorexporter]
+      logs/otlp:
+        receivers: [ otlp ]
+        processors: [ nrprocessor ]
+        exporters: [ otlp ]
+      metrics/nr:
+        receivers: [nrproprietaryreceiver]
+        processors: [nrprocessor]
+        exporters: [nrcollectorexporter]
+      metrics/otlp:
+        receivers: [otlp]
+        processors: [ nrprocessor]
+        exporters: [otlp]
+      traces/otlp:
+        receivers: [otlp]
+        processors: [nrprocessor]
+        exporters: [ otlp ]
+      traces/nr:
+        receivers: [ nrproprietaryreceiver ]
+        processors: [ nrprocessor ]
+        exporters: [ nrcollectorexporter ]
+      metrics/monitoring:
+        receivers: [prometheus/monitoring]
+        processors: []
+        exporters: [otlphttp]
+
+    telemetry:
+      {{- if .Values.hasVerboseLog }}
+      logs:
+        level: {{ .Values.computedLogLevel }}
+      {{- end }}
+      metrics:
+        level: {{ .Values.computedMetricsLevel }}
 
 image:
   # -- OTel collector image to be deployed. You can use your own collector as long it accomplish the following requirements mentioned below.

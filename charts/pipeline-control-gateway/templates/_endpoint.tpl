@@ -29,22 +29,6 @@ A helper to return the NR GRPC endpoint to send data to
 {{- end -}}
 
 {{- /*
-A helper to return the NR collector endpoint for data
-*/ -}}
-{{- define "nrCollector.endpoint" -}}
-{{- if include "newrelic.common.nrStaging" . -}}
-    https://staging-collector.newrelic.com
-{{- else -}}
-    {{- if hasPrefix "eu" (include "newrelic.common.license._licenseKey" . ) -}}
-        https://collector.eu.newrelic.com
-    {{- else -}}
-        https://collector.newrelic.com
-    {{- end -}}
-{{- end -}}
-{{- end -}}
-
-
-{{- /*
 A helper to return the NR Event endpoint to send data to
 */ -}}
 {{- define "nrKubernetesOtel.event.endpoint" -}}

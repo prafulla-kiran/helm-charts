@@ -15,15 +15,5 @@ data:
     {{- else if .Values.generated }}
     {{- .Values.generated | nindent 4 }}
     {{- else }}
-    # Default configuration - please provide configuration via Values.generated
-    extensions:
-      healthcheckv2:
-        use_v2: true
-        http:
-          endpoint: ${env:MY_POD_IP}:{{ .Values.ports.healthHttp }}
-          status:
-            enabled: true
-            path: "/health/status"
-    service:
-      extensions: [healthcheckv2]
+    # No configuration provided - please provide configuration via Values.generated
     {{- end }}

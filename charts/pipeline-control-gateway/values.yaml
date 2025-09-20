@@ -15,49 +15,6 @@ ports:
   healthHttp: 13133
   prometheus: 8888
 
-# Legacy OpenTelemetry configuration sections - deprecated in favor of Values.generated
-# These are kept for backward compatibility but will be ignored if Values.generated is provided
-prometheus:
-  ip: 0.0.0.0
-  scrape_interval: 15s
-  usage:
-    scrape_interval: 60s
-
-receivers:
-  nrproprietaryreceiver:
-    logging:
-      enable: false
-    logfilter:
-      enabled: false
-      flush_interval: 5s
-      pattern: ".*"
-      buffer_size: 262144
-    enableDefaultHost: false
-    enableRuntimeMetrics: true
-    proxy: false
-
-processors:
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: 100
-  nrprocessor:
-    queries:
-
-    queue:
-      enabled: true
-      queue_size: 100
-
-nrcollectorexporter:
-  retry_on_failure:
-    enabled: true
-    initial_interval: 100ms
-    max_interval: 500ms
-    max_elapsed_time: 5s
-  timeout: 10s
-  sending_queue:
-    enabled: false
-  compression: gzip
-  encoding: json
 
 image:
   # -- OTel collector image to be deployed. You can use your own collector as long it accomplish the following requirements mentioned below.

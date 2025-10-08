@@ -137,7 +137,7 @@ generated: |
 
   receivers:
     nrproprietaryreceiver:
-      nr_host: https://otlp.nr-data.net
+      nr_host: otlp.nr-data.net
       logging:
         enable: false
       logfilter:
